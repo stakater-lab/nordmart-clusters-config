@@ -1,0 +1,16 @@
+apiVersion: bitnami.com/v1alpha1
+kind: SealedSecret
+metadata:
+  creationTimestamp: null
+  name: commit-status-tracker-git-secret
+  namespace: nordmart-build
+spec:
+  encryptedData:
+    token: AgCBrfUsUGbp7JJpNl45t6BxC8sShPQkkAWg/yCkVLNmvMOop/YnxGGYliU1Zlz1CiIZF2JAtB28hs1B+17xXAj7c4kzpNA/f/+N1zgx0kxHHtqwMfjZRBlGcui1RSd4v91+DEHqFSuvkyX1ge4HDoG6x2LbbX+B1+QWlY9CNyw6U7sJ6xu/c1IcV+hurcuKvXibV/w+na28lQ2ydsbttGkW4/6YxklcD+V6Z5fw84HVJuratoc9Dlnf0Fx97bFCcIVYdHDXrkKo0EQbpzwwTQpjkcpGgez8k5IbWeqVhjNZrqkEVo4ry62eapn7cOzU+FRfdTdbEVu4k7D2VhxNqh62JSHLByoY2mJLmwP5M9BwoLbF81M3bxX4uC/NlvL1DNzmqWBS5FFAb+3EMMmTjGCgwevbsmtui6F4skhXskysalz19qNAgzltgqZ5CZsyu2inD/iGMuR6XjYUnfmfdz51oxdSOAK9azs3dhnZpw2VwL7CIytJVM9iYzbqdGWc1sXXS99mruqPwggLvt1Tvs6r/zmD62HumV7n8kshnizCWJDO8ohzktVHKOTdK8fDUE7RwfAdQ/+J4nP1+ny94BCL1CZsVSTO6FpLsQFcPGRIc7dSd+ivrzWHtf+YoTPiJa2hXyeMEOzcDBx3knoDyYnwmw1ZibKOAPPduhn7EI7+atoir905L7+IQYMMBtznR4/lMdoVoGEsVYGs/QWZwsv+KIL1Eam3NmifixVVYWw2EObYWOp0NS+i
+  template:
+    metadata:
+      creationTimestamp: null
+      name: commit-status-tracker-git-secret
+      namespace: nordmart-build
+    type: Opaque
+

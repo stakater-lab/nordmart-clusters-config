@@ -1,0 +1,19 @@
+apiVersion: bitnami.com/v1alpha1
+kind: SealedSecret
+metadata:
+  creationTimestamp: null
+  name: registry-auth
+  namespace: nordmart-build
+spec:
+  encryptedData:
+    password: AgBMXDX3CAjaicIGBrZvaCtENpvzmPtZxFagB/ctcjDvyRXkbH8Yofsg4ZQpTdrhDfLZPC1hSrymoyI5/I9zVW3kT0oJnkpT/VzxS9DOCNDxwhBWh9Q2h6xWGXCbzSvtnZcJODZM2f4grEDgVkAHwqcdFJIKmmPIHWvaPWYOb3u4DNUh4Qqk3PtNW+WOl/mDyDT911srIqrf46PvPbghaXUNvPDKJNytGy8V2lwRCdZjyl8fSOc5fGPr+RksGwU69JBeFM77JNN5Thc869LaFSKKAqTZRhcuxMsmm5nZhJsP1Gzsms7u5k3/mRWUbOdMxGajC8tMiy63sowQ/ljkVXFXBR319eIM5cE2PLaNI0bkjfVkpeF1PZE9B6ooJC1wea7/WidW9t/JT001/8SMxUWfjQAdB2ZdJWKC/vh5oTANFi2IkEDrE+kl75KdcesqUXUPnWwqffNLApJKiYUDATQ/TWpaOEOI2CKqscahIjDvc86/qeGlmNMur2THcriAXu5DXuC60UCPNFo76nsz+BcltoLHyCHsrnTYsFAS3UDGXzqtuW+NW3aUoAeoyqh/eXnOYDfJ6jQUFzzSj4QUJ2qqC4zCEz3u7Cg/exSnJiCYq1ZXcTe/Bhhy7ti2+GRhmVCmdj+ZFbsLU9gxZb1qyhXo+QPPymINGicVK6gUqbc5eXJLCyrwq+rBU+Vn9P0pMHkq64/fCKR2oSic
+    username: AgCtm+eZTiXr4JbSEoDi+0VE4jLl3NgJ+H+kx++dtMG/0hycNHYnx7eNT2aovE5q1VRa8a318MKfEm7wTa7yjxsiimMM006qvskEapKfLOzJkfq6hN9uzEiWLKlIXM8UonQ6hOD8TlMdBJcE/bFI7uiRDAyyoBHCEAR/s6jKwNAY/mZmezDhrKfCem0FU8x5N51Sc3iys0Pr3f6EythowU2KczqoFbg7Pptr181sWPlqtzIxUpgc7zcBkDb1B4vhjXzmqt/6zlWQwIWjrXYH8kecPqKXKHpW3EE9b730O9FzZR6NfOm7J1TgwItMThWdZQLWxuf4vJO3G9DOFZDCXx5yj41M3pcpWo4vTlLLtkUZ2epHSCodJ2mrHoIqXpRs+PKXruQZNtkhs7ohqOfumSiMh7OMF0aP0gm5+DgB5VMaXVDGOMEWhsWJYLVt+DjdDPP6XAspJyXhuFzUL258nS7c6vPP5pqthVczKh7wNFx97y4MhTPZm91Cm5D7zzfCSYJhonVuVJL7dIGjwarUnZbMUKcmhJ8UdrUqDgZIMREH7qygwTJEB9wCrXS22mb3uEuPb3OCKH406lBOFHYzNO2Xn10CfTu6NHVCp+xDGB81lJ7LrnSzZRO8gOYfAnzMweA5HVWQtrMdQgg4qLvTqaJjpiDOJ3V6/cCdj/HxlOd4xeJzX5uXraf+kOIS7PbFngOU4LcLUYws1ccDDFA=
+  template:
+    metadata:
+      annotations:
+        tekton.dev/docker-0: docker.io
+      creationTimestamp: null
+      name: registry-auth
+      namespace: nordmart-build
+    type: kubernetes.io/basic-auth
+
