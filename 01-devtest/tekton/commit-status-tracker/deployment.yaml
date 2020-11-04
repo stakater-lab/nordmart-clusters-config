@@ -1,0 +1,33 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: commit-status-tracker
+  namespace: nordmart-build
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      name: commit-status-tracker
+  template:
+    metadata:
+      labels:
+        name: commit-status-tracker
+    spec:
+      serviceAccountName: commit-status-tracker
+      containers:
+        - name: commit-status-tracker
+          image: stakater/commit-status-tracker:v0.0.1
+          command:
+          - commit-status-tracker
+          imagePullPolicy: Always
+          env:
+            - name: WATCH_NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+            - name: POD_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            - name: OPERATOR_NAME
+              value: "commit-status-tracker"
