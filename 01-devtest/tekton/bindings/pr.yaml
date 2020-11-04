@@ -1,0 +1,21 @@
+apiVersion: triggers.tekton.dev/v1alpha1
+kind: TriggerBinding
+metadata:
+  name: triggerbinding-pr-github
+  namespace: nordmart-build
+spec:
+  params:
+    - name: gitrevision
+      value: $(body.pull_request.head.sha)
+    - name: repoName
+      value: $(body.repository.name)
+    - name: prnumberBranch
+      value: pr-$(body.pull_request.number)
+    - name: prnumber
+      value: $(body.pull_request.number)
+    - name: namespace
+      value: nordmart-build
+    - name: gitrepositoryurl
+      value: "https://github.com/$(body.repository.full_name)"
+    - name: image_registry_url
+      value: "docker.io/stakater/$(body.repository.name)"
