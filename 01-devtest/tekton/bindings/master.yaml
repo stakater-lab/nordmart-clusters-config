@@ -1,0 +1,31 @@
+apiVersion: triggers.tekton.dev/v1alpha1
+kind: TriggerBinding
+metadata:
+  name: triggerbinding-master-github
+  namespace: nordmart-build
+spec:
+  params:
+    - name: gitrevision
+      value: master
+    - name: gitorganization
+      value: "github.com/stakater-lab"
+    - name: gitcdrepo
+      value: "nordmart-apps-config"
+    - name: team
+      value: "nordmart"
+    - name: clusterName
+      value: "01-devtest"
+    - name: repoName
+      value: $(body.repository.name)
+    - name: repoPath
+      value: $(body.repository.full_name)
+    - name: prnumberBranch
+      value: master
+    - name: prnumber
+      value: NA
+    - name: namespace
+      value: nordmart-build
+    - name: gitrepositoryurl
+      value: "https://github.com/$(body.repository.full_name)"
+    - name: image_registry_url
+      value: "docker.io/stakater/$(body.repository.name)"

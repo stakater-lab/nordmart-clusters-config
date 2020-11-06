@@ -1,0 +1,42 @@
+### Comment On Github PR ###
+apiVersion: tekton.dev/v1beta1
+kind: ClusterTask
+metadata:
+  name: comment-on-github-pr
+  annotations:
+    description: |
+      Comment about image availability if PR on Github 
+spec:
+  workspaces:
+  - name: source
+  params:
+    - description: Reference of the image buildah will produce.
+      name: IMAGE
+      type: string
+    - name: prnumber
+      description: In case of PR, PR number that is to be used in image tag. If this field is empty it means that it's a commit on master branch
+      default: "NA"
+    - name: gitrepositoryurl
+      description: The git repository url
+  steps:
+  - name: comment-on-pr
+    image: stakater/alpine-git
+    command: ["/bin/bash"]
+    workingdir: /workspace/source/
+    env:
+      - name: GITHUBTOKEN
+        valueFrom:
+          secretKeyRef:
+            name: git-auth
+            key: password
+    args:
+    - -c
+    - |
+      REPO_URL=$(params.gitrepositoryurl)
+      #Remove protocol
+      REPO_NAME=${REPO_URL#*//}
+      #Remove baseurl
+      REPO_NAME=${REPO_NAME#*/}
+      curl -s -H "Authorization: token ${GITHUBTOKEN}" \
+      -X POST -d '{"body": "Tekton - Pipeline ran successfully and image `$(params.IMAGE)` is available"}' \
+      "https://api.github.com/repos/${REPO_NAME}/issues/$(params.prnumber)/comments"

@@ -1,0 +1,27 @@
+apiVersion: triggers.tekton.dev/v1alpha1
+kind: TriggerBinding
+metadata:
+  name: triggerbinding-merge-pr
+  namespace: nordmart-build
+spec:
+  params:
+    - name: gitrevision
+      value: $(body.pull_request.head.sha)
+    - name: gitrepositoryurl
+      value: "https://github.com/$(body.repository.full_name)"
+    - name: prnumber
+      value: $(body.pull_request.number)
+    - name: namespace
+      value: nordmart-build
+    - name: repoName
+      value: $(body.repository.name)
+    - name: repoPath
+      value: $(body.repository.full_name)
+    - name: gitorganization
+      value: "github.com/stakater-lab"
+    - name: gitcdrepo
+      value: "nordmart-apps-config"
+    - name: team
+      value: "nordmart"
+    - name: clusterName
+      value: "01-devtest"

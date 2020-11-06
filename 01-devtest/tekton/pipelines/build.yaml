@@ -1,0 +1,127 @@
+apiVersion: tekton.dev/v1alpha1
+kind: Pipeline
+metadata:
+  name: pipeline-github
+  namespace: nordmart-build
+spec:
+  params:
+    - name: prnumber
+    - name: projectID
+    - name: repoPath
+    - name: gitrepositoryurl
+    - name: gitrevision
+    - name: image_registry_url
+    - name: gitorganization
+    - name: gitcdrepo
+    - name: clusterName
+    - name: team
+  workspaces:
+    - name: source
+  resources:
+    - name: app-git
+      type: git
+  tasks:
+  - name: fetch-from-git
+    taskRef:
+      name: git-clone
+      kind: ClusterTask
+    params:
+    - name: url
+      value: $(params.gitrepositoryurl)
+    - name: revision
+      value: $(params.gitrevision)
+    workspaces:
+    - name: output
+      workspace: source
+  - name: create-git-tag
+    runAfter:
+    - fetch-from-git
+    taskRef:
+      name: create-git-tag
+      kind: ClusterTask
+    params:
+    - name: prnumber
+      value: $(params.prnumber)
+    - name: gitrevision
+      value: $(params.gitrevision)
+    workspaces:
+    - name: source
+      workspace: source
+  - name: build-and-push
+    taskRef:
+      name: buildah
+      kind: ClusterTask
+    runAfter:
+    - create-git-tag
+    params:
+    - name: IMAGE
+      value: $(params.image_registry_url):$(tasks.create-git-tag.results.GIT_TAG)
+    - name: TLSVERIFY
+      value: "true"
+    - name: FORMAT
+      value: "docker"
+    workspaces:
+    - name: source
+      workspace: source
+  - name: comment-on-github-pr
+    taskRef:
+      name: comment-on-github-pr
+      kind: ClusterTask
+    runAfter:
+    - build-and-push
+    params:
+    - name: prnumber
+      value: $(params.prnumber)
+    - name: gitrepositoryurl
+      value: $(params.gitrepositoryurl)
+    - name: IMAGE
+      value: $(params.image_registry_url):$(tasks.create-git-tag.results.GIT_TAG)
+    workspaces:
+    - name: source
+      workspace: source
+  - name: update-cd-repo
+    taskRef:
+      name: update-cd-repo
+      kind: ClusterTask
+    runAfter:
+    - comment-on-github-pr
+    params:
+    - name: prnumber
+      value: $(params.prnumber)
+    - name: projectID
+      value: $(params.projectID)
+    - name: IMAGE_TAG
+      value: $(tasks.create-git-tag.results.GIT_TAG)
+    - name: IMAGE_NAME
+      value: $(params.image_registry_url)
+    - name: repoPath
+      value: $(params.repoPath)
+    - name: gitrevision
+      value: $(params.gitrevision)
+    - name: gitorganization
+      value: $(params.gitorganization)
+    - name: gitcdrepo
+      value: $(params.gitcdrepo)
+    - name: clusterName
+      value: $(params.clusterName)
+    - name: team
+      value: $(params.team)
+    workspaces:
+    - name: source
+      workspace: source
+  - name: push-master-tag
+    taskRef:
+      name: push-master-tag
+      kind: ClusterTask
+    runAfter:
+    - update-cd-repo
+    params:
+    - name: prnumber
+      value: $(params.prnumber)
+    - name: IMAGE_TAG
+      value: $(tasks.create-git-tag.results.GIT_TAG)
+    - name: gitrevision
+      value: $(params.gitrevision)
+    workspaces:
+    - name: source
+      workspace: source
