@@ -27,7 +27,7 @@ spec:
       - name: GITHUBTOKEN
         valueFrom:
           secretKeyRef:
-            name: github-auth
+            name: git-auth
             key: password
     args:
     - -c
