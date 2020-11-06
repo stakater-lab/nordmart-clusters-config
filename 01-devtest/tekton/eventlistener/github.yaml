@@ -6,6 +6,17 @@ metadata:
 spec:
   serviceAccountName: stakater-tekton-builder
   triggers:
+    - name: pullrequest-merge-trigger
+      interceptors:
+        - cel:
+            filter: >-
+              (header.match('X-GitHub-Event', 'pull_request') &&
+              body.action == 'closed' )
+      bindings:
+      - ref: triggerbinding-merge-pr
+      template:
+        name: docker-pr-merge-triggertemplate
+    
     - name: pullrequest-trigger
       interceptors:
         - cel:
