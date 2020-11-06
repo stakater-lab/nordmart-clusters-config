@@ -5,6 +5,14 @@ metadata:
   namespace: nordmart-build
 spec:
   params:
+    - name: gitorganization
+      description: The git organization containing the CD repo
+    - name: gitcdrepo
+      description: The CD git repo in the gitorganization param
+    - name: team
+      description: The team name for the microservice
+    - name: clusterName
+      description: The cluster name on which the apps will get deployed
     - name: gitrevision
       description: The git revision
       default: master
@@ -75,3 +83,76 @@ spec:
           value: $(params.gitrevision)
         - name: image_registry_url
           value: $(params.image_registry_url)
+        - name: gitorganization
+          value: $(params.gitorganization)
+        - name: gitcdrepo
+          value: $(params.gitcdrepo)
+        - name: team
+          value: $(params.team)
+        - name: clusterName
+          value: $(params.clusterName)
+---
+
+apiVersion: triggers.tekton.dev/v1alpha1
+kind: TriggerTemplate
+metadata:
+  name: docker-pr-merge-triggertemplate
+  namespace: nordmart-build
+spec:
+  params:
+    - name: gitorganization
+      description: The git organization containing the CD repo
+    - name: gitcdrepo
+      description: The CD git repo in the gitorganization param
+    - name: team
+      description: The team name for the microservice
+    - name: clusterName
+      description: The cluster name on which the apps will get deployed
+    - name: gitrevision
+      description: The git revision
+      default: master
+    - name: gitrepositoryurl
+      description: The git repository url
+    - name: namespace
+      description: The namespace to create the resources
+    - name: prnumber
+      description: PR number in case of pull request, Empty value if it's a push event
+      default: NA
+    - name: repoPath
+      description: Path of repository with group name
+      default: "NA"
+    - name: repoName
+      description: Repository name
+      default: "NA"
+  resourcetemplates:
+    - apiVersion: tekton.dev/v1alpha1
+      kind: PipelineRun
+      metadata:
+        name: $(params.repoName)-pr-$(params.prnumber)-cleaner
+        namespace: $(params.namespace)
+      spec:
+        serviceAccountName: stakater-tekton-builder
+        pipelineRef:
+          name: pipeline-docker-merge-pr
+        resources:
+          - name: app-git
+            resourceSpec:
+              type: git
+              params:
+              - name: revision
+                value: $(params.gitrevision)
+              - name: url
+                value: $(params.gitrepositoryurl)
+        params:
+        - name: prnumber
+          value: $(params.prnumber)
+        - name: repoPath
+          value: $(params.repoPath)
+        - name: gitorganization
+          value: $(params.gitorganization)
+        - name: gitcdrepo
+          value: $(params.gitcdrepo)
+        - name: team
+          value: $(params.team)
+        - name: clusterName
+          value: $(params.clusterName)
