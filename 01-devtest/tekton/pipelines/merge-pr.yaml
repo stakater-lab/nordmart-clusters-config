@@ -1,0 +1,46 @@
+apiVersion: tekton.dev/v1alpha1
+kind: Pipeline
+metadata:
+  name: pipeline-docker-merge-pr
+  namespace: nordmart-build
+spec:
+  params:
+    - name: prnumber
+      type: string
+      description: In case of PR, PR number that is to be used in image tag. If this field is empty it means that it's a commit on master branch
+      default: NA
+    - name: repoPath
+      type: string
+      description: Path of repository with group name
+      default: "NA"
+    - name: gitorganization
+    - name: gitcdrepo
+    - name: clusterName
+    - name: team
+  resources:
+    - name: app-git
+      type: git
+  tasks:
+    - name: pr-merge-cleaner
+      taskRef:
+        name: pr-merge-cleaner
+        kind: ClusterTask
+      retries: 0
+      params:
+        - name: prnumber
+          value: $(params.prnumber)
+        - name: repoPath
+          value: $(params.repoPath)
+        - name: gitorganization
+          value: $(params.gitorganization)
+        - name: gitcdrepo
+          value: $(params.gitcdrepo)
+        - name: clusterName
+          value: $(params.clusterName)
+        - name: team
+          value: $(params.team)
+        
+      resources:
+        inputs:
+          - name: source
+            resource: app-git
