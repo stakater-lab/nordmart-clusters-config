@@ -9,7 +9,7 @@ spec:
     server: 'https://kubernetes.default.svc'
   source:
     path: 01-devtest/nordmart/dev
-    repoURL: 'https://github.com/stakater/nordmart-apps-config.git'
+    repoURL: 'https://github.com/stakater-lab/nordmart-apps-config.git'
     targetRevision: HEAD
   project: default
   syncPolicy:
