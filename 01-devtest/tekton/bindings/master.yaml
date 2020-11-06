@@ -6,9 +6,19 @@ metadata:
 spec:
   params:
     - name: gitrevision
-      value: $(body.head_commit.id)
+      value: master
+    - name: gitorganization
+      value: "github.com/stakater-lab"
+    - name: gitcdrepo
+      value: "nordmart-apps-config"
+    - name: team
+      value: "nordmart"
+    - name: clusterName
+      value: "01-devtest"
     - name: repoName
       value: $(body.repository.name)
+    - name: repoPath
+      value: $(body.repository.full_name)
     - name: prnumberBranch
       value: master
     - name: prnumber
