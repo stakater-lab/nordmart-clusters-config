@@ -336,12 +336,12 @@ spec:
       cd ${TEAM}
       if [ "$(params.prnumber)" != "NA" ]; then
         mkdir -p pr || true
-        helm template ${REPO} stakater/application -f /workspace/source/deploy/values-dev.yaml --set applicationName=${REPO}-$(params.prnumber) --set deployment.image.repository=$(params.IMAGE_NAME) --set deployment.image.tag=$(params.IMAGE_TAG) --namespace ${TEAM}-pr > pr/${REPO}-$(params.prnumber).yaml
+        helm template ${REPO} deploy/ --set applicationName=${REPO}-$(params.prnumber) --set deployment.image.repository=$(params.IMAGE_NAME) --set deployment.image.tag=$(params.IMAGE_TAG) --namespace ${TEAM}-pr > pr/${REPO}-$(params.prnumber).yaml
         git add .
         git commit -m "generate manifest for ${REPO} pr - $(params.prnumber)"
       elif [ "$(params.prnumber)" == "NA" ] && [ "$(params.gitrevision)" == "master" ]; then
         mkdir -p dev || true
-        helm template ${REPO} stakater/application -f /workspace/source/deploy/values-dev.yaml --set deployment.image.repository=$(params.IMAGE_NAME) --set deployment.image.tag=$(params.IMAGE_TAG) --namespace ${TEAM}-dev > dev/${REPO}.yaml
+        helm template ${REPO} deploy/--set deployment.image.repository=$(params.IMAGE_NAME) --set deployment.image.tag=$(params.IMAGE_TAG) --namespace ${TEAM}-dev > dev/${REPO}.yaml
         git add .
         git commit -m "generate manifest for ${REPO} dev"
       fi
