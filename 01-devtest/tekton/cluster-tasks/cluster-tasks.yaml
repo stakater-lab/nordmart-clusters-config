@@ -1,0 +1,832 @@
+### CLUSTER TASKS ###
+### echo status ###
+apiVersion: tekton.dev/v1alpha1
+kind: ClusterTask
+metadata:
+  name: echo-status
+spec:
+  steps:
+  - name: echo-status
+    image: docker.io/library/busybox
+    command:
+      - /bin/sh
+    args:
+      - -c
+      - "echo Pipeline is starting"
+---
+### Docker Build Push Deploy ###
+### v1 ###
+apiVersion: tekton.dev/v1alpha1
+kind: ClusterTask
+metadata:
+  name: docker-build-push-deploy
+spec:
+  resources:
+    inputs:
+      - name: source
+        type: git
+    outputs:
+      - name: builtImage
+        type: image
+  params:
+    - name: tlsVerify
+      description: Verify the TLS on the registry endpoint
+      default: "true"
+    - name: destinationImageName
+      description: The destination image name that will be pushed to container registry
+      default: "$(outputs.resources.builtImage.url)"
+    - name: prnumber
+      description: In case of PR, PR number that is to be used in image tag. If this field is empty it means that it's a commit on master branch
+      default: "NA"
+    - name: gitrevision
+      description: The git revision
+      default: "$(inputs.resources.source.revision)"
+    - name: gitrepositoryurl
+      description: The git repository url
+      default: "$(inputs.resources.source.url)"
+    - name: dockerFilePath
+      description: Path to DockerFile. Required to build docker image
+      default: "Dockerfile"
+    - name: projectID
+      description: ID of project on Gitlab
+      default: "NA"
+    - name: repoPath
+      description: Path of repository with group name
+      default: "NA"
+    - name: gitorganization
+      description: Git organization URL
+      default: "gitlab.com/enento"
+    - name: gitcdrepo
+      description: The Directory to update CD manifests
+      default: "apps-config"
+
+  stepTemplate:
+    resources:
+      requests:
+        cpu: 700m
+        memory: 2Gi
+      limits: {}
+  steps:
+    - name: create-tag-file
+      image: stakater/alpine-git
+      command: ["/bin/bash"]
+      workingdir: /workspace/source/
+      args:
+        - -c
+        - |
+          imageTag=latest
+          echo "Git revision: $(inputs.params.gitrevision)"
+          if [ $(inputs.params.prnumber) != "NA" ]; then
+              # This is a PR
+              gitrevision=$(inputs.params.gitrevision)
+              imageTag="SNAPSHOT-PR-$(inputs.params.prnumber)-${gitrevision:0:8}"
+          elif [ $(inputs.params.prnumber) == "NA" ] && [ $(inputs.params.gitrevision) == "master" ]; then
+              # Commit pushed on master branch
+              # Retrieve current tag
+              echo "Its master branch"
+              git pull --tags >/dev/null 2>&1
+              echo "pulled tags"
+              # ERROR: fatal: No tags can describe '<revision-sha>'. when using `git describe --abbrev=0 --tags`
+              #Working alternative = (git describe --tags $(git rev-list --tags --max-count=1))
+              VERSION=$(git tag --sort=taggerdate | tail -1)
+              echo "Current tag for master: $VERSION"
+              # Split version and increment path by 1
+              VERSION=${VERSION:-'0.0.0'}
+              MAJOR="${VERSION%%.*}"; VERSION="${VERSION#*.}"
+              MINOR="${VERSION%%.*}"; VERSION="${VERSION#*.}"
+              PATCH="${VERSION%%.*}"; VERSION="${VERSION#*.}"
+              PATCH=$((PATCH+1))
+              imageTag="$MAJOR.$MINOR.$PATCH"
+          else
+              #Not a PR and not a commit on master branch
+              gitrevision=$(inputs.params.gitrevision)
+              imageTag=${gitrevision:0:8}
+          fi
+          echo "Image tag is $imageTag"
+          echo $imageTag > /workspace/source/GIT_TAG
+    - name: build-image
+      image: quay.io/buildah/stable
+      resources:
+        requests:
+          cpu: 1
+          memory: 2.5Gi
+        limits: {}
+      workingdir: /workspace/source/
+      command: ["/bin/bash"]
+      args:
+        - -c
+        - |
+          export IMAGE_TAG=$(cat /workspace/source/GIT_TAG)
+          time buildah build-using-dockerfile --tls-verify=$(inputs.params.tlsVerify) --layers --format=docker -f /workspace/source/$(inputs.params.dockerFilePath) -t $(inputs.params.destinationImageName):$IMAGE_TAG .
+      volumeMounts:
+        - name: varlibcontainers
+          mountPath: /var/lib/containers
+      # override security context as container image build need to run as root
+      securityContext:
+        allowPrivilegeEscalation: true
+        runAsUser: 0
+        privileged: true
+    - name: push-image
+      image: quay.io/buildah/stable
+      command: ["/bin/bash"]
+      args:
+        - -c
+        - |
+          export IMAGE_TAG=$(cat /workspace/source/GIT_TAG)
+          time buildah push --tls-verify=$(inputs.params.tlsVerify) $(inputs.params.destinationImageName):$IMAGE_TAG docker://$(inputs.params.destinationImageName):$IMAGE_TAG
+      volumeMounts:
+        - name: varlibcontainers
+          mountPath: /var/lib/containers
+      securityContext:
+        allowPrivilegeEscalation: true
+        runAsUser: 0
+        privileged: true
+    - name: comment-on-pr
+      image: stakater/alpine-git
+      command: ["/bin/bash"]
+      workingdir: /workspace/source/
+      env:
+        - name: GIT_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: git-auth
+              key: password
+      args:
+        - -c
+        - |
+          if [ $(inputs.params.prnumber) != "NA" ]; then
+              echo "It is a PR so commenting"
+              export IMAGE_TAG=$(cat /workspace/source/GIT_TAG)
+              export TEMP_COMMENT="Image is available for testing: %60 docker pull $(inputs.params.destinationImageName):$IMAGE_TAG%60"
+              COMMENT=$(echo "$TEMP_COMMENT" | sed -r 's/[ ]+/%20/g')
+              echo "Comment to post on PR: $COMMENT"
+              curl --request POST --header "PRIVATE-TOKEN: $GIT_PASSWORD" https://gitlab.com/api/v4/projects/$(inputs.params.projectID)/merge_requests/$(inputs.params.prnumber)/notes?body="$COMMENT"
+          fi
+    - name: update-cd-repo
+      image: dtzar/helm-kubectl
+      command: ["/bin/bash"]
+      workingdir: /workspace/cd_dir/
+      env:
+        - name: GIT_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: git-auth
+              key: password
+        - name: GIT_USERNAME
+          valueFrom:
+            secretKeyRef:
+              name: git-auth
+              key: username
+        - name: GIT_EMAIL
+          valueFrom:
+            secretKeyRef:
+              name: git-auth
+              key: email
+      args:
+        - -c
+        - |
+          export IMAGE_TAG=$(cat /workspace/source/GIT_TAG)
+          git clone https://$GIT_USERNAME:$GIT_PASSWORD@$(inputs.params.gitorganization)/$(inputs.params.gitcdrepo)
+          cd $(inputs.params.gitcdrepo)
+          TEAM=$(echo $(inputs.params.repoPath) | cut -d'/' -f 2)
+          REPO=$(echo $(inputs.params.repoPath) | rev | cut -d'/' -f 1 | rev )
+          echo "Team is ${TEAM}"
+          echo "Repo is ${REPO}"
+          cd ${TEAM}
+          ls
+          helm repo add stakater https://stakater.github.io/stakater-charts/
+          git config --global user.name $GIT_USERNAME
+          git config --global user.email $GIT_EMAIL
+          if [ $(inputs.params.prnumber) != "NA" ]; then
+              mkdir -p pr || true
+              helm template ${REPO} stakater/application -f ${REPO}-values-dev.yaml --set applicationName=${REPO}-$(inputs.params.prnumber) --set deployment.image.repository=$(inputs.params.destinationImageName) --set deployment.image.tag=${IMAGE_TAG} --namespace ${TEAM}-pr > pr/${REPO}-$(inputs.params.prnumber).yaml
+              git add .
+              git commit -m "generate manifest for ${REPO} pr - $(inputs.params.prnumber)"
+              git push
+          elif [ $(inputs.params.prnumber) == "NA" ] && [ $(inputs.params.gitrevision) == "master" ]; then
+              mkdir -p dev || true
+              helm template ${REPO} stakater/application -f ${REPO}-values-dev.yaml --set deployment.image.repository=$(inputs.params.destinationImageName) --set deployment.image.tag=${IMAGE_TAG} --namespace ${TEAM}-dev > dev/${REPO}.yaml
+              git add .
+              git commit -m "generate manifest for ${REPO} dev"
+          fi
+          git push
+          
+    - name: push-master-tags
+      image: stakater/alpine-git
+      command: ["/bin/bash"]
+      workingdir: /workspace/source/
+      env:
+        - name: GIT_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: git-auth
+              key: password
+        - name: GIT_USERNAME
+          valueFrom:
+            secretKeyRef:
+              name: git-auth
+              key: username
+        - name: GIT_EMAIL
+          valueFrom:
+            secretKeyRef:
+              name: git-auth
+              key: email
+      args:
+        - -c
+        - |
+          if [ $(inputs.params.prnumber) == "NA" ] && [ $(inputs.params.gitrevision) == "master" ]; then
+              export IMAGE_TAG=$(cat /workspace/source/GIT_TAG)
+              git config --global user.name $GIT_USERNAME
+              git config --global user.email $GIT_EMAIL
+              git config --global user.password $GIT_PASSWORD
+              git tag -am "Bump version to $IMAGE_TAG" $IMAGE_TAG
+              git push --tags
+          fi
+  volumes:
+    - name: varlibcontainers
+      emptyDir: {}
+---
+### Update CD Repo ###
+apiVersion: tekton.dev/v1beta1
+kind: ClusterTask
+metadata:
+  name: update-cd-repo
+  annotations:
+    description: |
+      Update CD Repo so ArgoCD can deploy
+spec:
+  workspaces:
+  - name: source
+  params:
+  - description: Reference of the image tag.
+    name: IMAGE_TAG
+    type: string
+  - description: Reference of the image name.
+    name: IMAGE_NAME
+    type: string
+  - name: prnumber
+    description: In case of PR, PR number that is to be used in image tag. If this field is empty it means that it's a commit on master branch
+    default: "NA"
+  - name: projectID
+    description: ID of project on Gitlab
+    default: "NA"
+  - name: gitorganization
+    description: Git organization URL
+    default: ""
+  - name: gitcdrepo
+    description: The Directory to update CD manifests
+    default: ""
+  - name: repoPath
+    description: Path of repository with group name
+    default: "NA"
+  - name: gitrevision
+    description: The git revision
+  - name: team
+    description: The git revision
+    default: "NA"
+  - name: clusterName
+    description: The git revision
+    default: "NA"
+  steps:
+  - name: update-cd-repo
+    image: dtzar/helm-kubectl
+    command: ["/bin/bash"]
+    workingdir: /workspace/cd_dir/
+    env:
+    - name: GIT_PASSWORD
+      valueFrom:
+        secretKeyRef:
+          name: git-auth
+          key: password
+    - name: GIT_USERNAME
+      valueFrom:
+        secretKeyRef:
+          name: git-auth
+          key: username
+    - name: GIT_EMAIL
+      valueFrom:
+        secretKeyRef:
+          name: git-auth
+          key: email
+    args:
+    - -c
+    - |
+      echo $(params.gitcdrepo)
+      echo ${GIT_USERNAME}
+      echo $(params.gitorganization)
+      echo "$(params.team)"
+      echo "$(params.repoPath)"
+      git clone https://${GIT_USERNAME}:${GIT_PASSWORD}@$(params.gitorganization)/$(params.gitcdrepo)
+      cd $(params.gitcdrepo)
+      if [ "$(params.team)" != "NA" ]; then
+        TEAM=$(params.team)
+      else
+        TEAM=$(echo $(params.repoPath) | cut -d'/' -f 2)
+      fi
+      echo "Team is ${TEAM}"
+      REPO=$(echo $(params.repoPath) | rev | cut -d'/' -f 1 | rev )
+      echo "Repo is ${REPO}"
+      ls
+      helm repo add stakater https://stakater.github.io/stakater-charts/
+      git config --global user.name ${GIT_USERNAME}
+      git config --global user.email ${GIT_EMAIL}
+      if [ "$(params.clusterName)" != "NA" ]; then
+        cd $(params.clusterName)
+      fi
+      cd ${TEAM}
+      if [ "$(params.prnumber)" != "NA" ]; then
+        mkdir -p pr || true
+        helm template ${REPO} stakater/application -f /workspace/source/deploy/values-dev.yaml --set applicationName=${REPO}-$(params.prnumber) --set deployment.image.repository=$(params.IMAGE_NAME) --set deployment.image.tag=$(params.IMAGE_TAG) --namespace ${TEAM}-pr > pr/${REPO}-$(params.prnumber).yaml
+        git add .
+        git commit -m "generate manifest for ${REPO} pr - $(params.prnumber)"
+      elif [ "$(params.prnumber)" == "NA" ] && [ "$(params.gitrevision)" == "master" ]; then
+        mkdir -p dev || true
+        helm template ${REPO} stakater/application -f /workspace/source/deploy/values-dev.yaml --set deployment.image.repository=$(params.IMAGE_NAME) --set deployment.image.tag=$(params.IMAGE_TAG) --namespace ${TEAM}-dev > dev/${REPO}.yaml
+        git add .
+        git commit -m "generate manifest for ${REPO} dev"
+      fi
+      git push
+      while [ $? -ne 0 ]; do
+        echo "Error on Push"
+        echo "Pulling via Rebase"
+        git pull --rebase
+        echo "Pushing"
+        git push
+      done
+
+---
+### Comment On PR ###
+apiVersion: tekton.dev/v1beta1
+kind: ClusterTask
+metadata:
+  name: comment-on-pr
+  annotations:
+    description: |
+      Comment about image availability if PR 
+spec:
+  workspaces:
+  - name: source
+  params:
+    - description: Reference of the image buildah will produce.
+      name: IMAGE
+      type: string
+    - name: prnumber
+      description: In case of PR, PR number that is to be used in image tag. If this field is empty it means that it's a commit on master branch
+      default: "NA"
+    - name: projectID
+      description: ID of project on Gitlab
+      default: "NA"
+  steps:
+  - name: comment-on-pr
+    image: stakater/alpine-git
+    command: ["/bin/bash"]
+    workingdir: /workspace/source/
+    env:
+      - name: GIT_PASSWORD
+        valueFrom:
+          secretKeyRef:
+            name: git-auth
+            key: password
+    args:
+      - -c
+      - |
+        if [ $(params.prnumber) != "NA" ]; then
+            echo "It is a PR so commenting"
+            export TEMP_COMMENT="Image is available for testing: %60 docker pull $(params.IMAGE)%60"
+            COMMENT=$(echo "$TEMP_COMMENT" | sed -r 's/[ ]+/%20/g')
+            echo "Comment to post on PR: $COMMENT"
+            curl --request POST --header "PRIVATE-TOKEN: $GIT_PASSWORD" https://gitlab.com/api/v4/projects/$(params.projectID)/merge_requests/$(params.prnumber)/notes?body="$COMMENT"
+        else
+            echo "Not a PR so cant comment"
+        fi
+---
+### Push Master Tag ###
+apiVersion: tekton.dev/v1beta1
+kind: ClusterTask
+metadata:
+  name: push-master-tag
+  annotations:
+    description: |
+      Push Tag in case of Master branch
+spec:
+  workspaces:
+  - name: source
+  params:
+    - description: Reference of the image tag
+      name: IMAGE_TAG
+      type: string
+    - name: prnumber
+      description: In case of PR, PR number that is to be used in image tag. If this field is empty it means that it's a commit on master branch
+      default: "NA"
+    - name: gitrevision
+      description: The git revision
+  steps:
+  - name: push-master-tag
+    image: stakater/alpine-git
+    command: ["/bin/bash"]
+    workingdir: /workspace/source/
+    env:
+      - name: GIT_PASSWORD
+        valueFrom:
+          secretKeyRef:
+            name: git-auth
+            key: password
+      - name: GIT_USERNAME
+        valueFrom:
+          secretKeyRef:
+            name: git-auth
+            key: username
+      - name: GIT_EMAIL
+        valueFrom:
+          secretKeyRef:
+            name: git-auth
+            key: email
+    args:
+      - -c
+      - |
+        if [ $(params.prnumber) == "NA" ] && [ $(params.gitrevision) == "master" ]; then
+            git config --global user.name $GIT_USERNAME
+            git config --global user.email $GIT_EMAIL
+            git config --global user.password $GIT_PASSWORD
+            git tag -am "Bump version to $IMAGE_TAG" $IMAGE_TAG
+            git push --tags
+        fi
+---
+### Create Git Tag ###
+apiVersion: tekton.dev/v1beta1
+kind: ClusterTask
+metadata:
+  name: create-git-tag
+  annotations:
+    description: |
+      Creates version for repo, by updating the patch of the latest git tag 
+spec:
+  workspaces:
+  - name: source
+  params:
+    - name: fileName
+      description: The name of the file that contains the tag
+      type: string
+      default: GIT_TAG
+    - name: gitrevision
+      description: The git revision
+    - name: prnumber
+      description: In case of PR, PR number that is to be used in image tag. If this field is empty it means that it's a commit on master branch
+      default: "NA"
+  results:
+  - name: GIT_TAG
+    description: The image tag specified in the given file
+  steps:
+  - name: create-tag-file
+    image: stakater/alpine-git
+    command: ["/bin/bash"]
+    workingdir: /workspace/source/
+    args:
+      - -c
+      - |
+        imageTag=latest
+        revision=$(params.gitrevision)
+        prNum=$(params.prnumber)
+        echo "Git revision: $revision"
+        echo "Pr Number: $prNum"
+        if [ $prNum != "NA" ]; then
+            # This is a PR
+            imageTag="SNAPSHOT-PR-$prNum-${revision:0:8}"
+        elif [ $prNum == "NA" ] && [ $revision == "master" ]; then
+            # Commit pushed on master branch
+            # Retrieve current tag
+            echo "Its master branch"
+            git pull --tags >/dev/null 2>&1
+            echo "pulled tags"
+            VERSION=$(git tag --sort=taggerdate | tail -1)
+            echo "Current tag for master: $VERSION"
+            # Split version and increment path by 1
+            VERSION=${VERSION:-'0.0.0'}
+            MAJOR="${VERSION%%.*}"; VERSION="${VERSION#*.}"
+            MINOR="${VERSION%%.*}"; VERSION="${VERSION#*.}"
+            PATCH="${VERSION%%.*}"; VERSION="${VERSION#*.}"
+            PATCH=$((PATCH+1))
+            imageTag="$MAJOR.$MINOR.$PATCH"
+        else
+            #Not a PR and not a commit on master branch
+            imageTag=${revision:0:8}
+        fi
+        echo "Image tag is $imageTag"
+        echo $imageTag > /workspace/source/GIT_TAG
+        echo -n $imageTag > $(results.GIT_TAG.path)
+
+---
+### PR merge cleaner ###
+apiVersion: tekton.dev/v1alpha1
+kind: ClusterTask
+metadata:
+  name: pr-merge-cleaner
+spec:
+  resources:
+    inputs:
+      - name: source
+        type: git
+  params:
+    - name: gitrevision
+      description: The git revision
+      default: "$(inputs.resources.source.revision)"
+    - name: gitrepositoryurl
+      description: The git repository url
+      default: "$(inputs.resources.source.url)"
+    - name: prnumber
+      description: In case of PR, PR number that is to be used in image tag. If this field is empty it means that it's a commit on master branch
+      default: "NA"
+    - name: repoPath
+      description: Path of repository with group name
+      default: "NA"
+    - name: gitorganization
+      description: Git organization URL
+      default: ""
+    - name: gitcdrepo
+      description: The Directory to update CD manifests
+      default: ""
+    - name: team
+      description: The git revision
+      default: "NA"
+    - name: clusterName
+      description: The git revision
+      default: "NA"
+  stepTemplate:
+    resources:
+      requests:
+        cpu: 250m
+        memory: 1Gi
+      limits: {}
+  steps:
+    - name: update-cd-repo-on-merge
+      image: dtzar/helm-kubectl
+      command: ["/bin/bash"]
+      workingdir: /workspace/cd_dir/
+      env:
+        - name: GIT_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: git-auth
+              key: password
+        - name: GIT_USERNAME
+          valueFrom:
+            secretKeyRef:
+              name: git-auth
+              key: username
+        - name: GIT_EMAIL
+          valueFrom:
+            secretKeyRef:
+              name: git-auth
+              key: email
+      args:
+        - -c
+        - |
+          git clone https://$GIT_USERNAME:$GIT_PASSWORD@$(inputs.params.gitorganization)/$(inputs.params.gitcdrepo)
+          cd $(inputs.params.gitcdrepo)
+          if [ $(params.team) == "NA" ]; then
+            TEAM=$(echo $(params.repoPath) | cut -d'/' -f 2)
+          else
+            TEAM=$(params.team)
+          fi
+          echo "Team is ${TEAM}"
+          REPO=$(echo $(inputs.params.repoPath) | rev | cut -d'/' -f 1 | rev )
+          echo "Repo is ${REPO}"
+          if [ $(params.clusterName) != "NA" ]; then
+            cd $(params.clusterName)
+          fi
+          cd ${TEAM}
+          ls
+          git config --global user.name $GIT_USERNAME
+          git config --global user.email $GIT_EMAIL
+          rm pr/${REPO}-$(inputs.params.prnumber).yaml
+          git add .
+          git commit -m "remove manifest for ${REPO} pr - $(inputs.params.prnumber)"
+          git push
+          while [ $? -ne 0 ]; do
+            echo "Error on Push"
+            echo "Pulling via Rebase"
+            git pull --rebase
+            echo "Pushing"
+            git push
+          done
+---
+### Create Tags for Dockerfile Repos ###
+apiVersion: tekton.dev/v1beta1
+kind: ClusterTask
+metadata:
+  name: create-image-tag
+  annotations:
+    description: |
+      Reads the image tag to use from the given file
+spec:
+  workspaces:
+  - name: source
+  params:
+    - name: fileName
+      description: The name of the file that contains the tag
+      type: string
+      default: IMAGE_TAG
+    - name: gitrevision
+      description: The git revision
+    - name: prnumber
+      type: string
+  results:
+  - name: IMAGE_TAG
+    description: The image tag specified in the given file
+  steps:
+  - name: create-image-tag
+    image: stakater/alpine-git
+    workingDir: $(workspaces.source.path)
+    script: |
+      #!/usr/bin/env bash
+      set -x
+      imageTag=latest
+      echo "Git revision: $(params.gitrevision)"
+      if [ $(params.prnumber) != "NA" ]; then
+          # This is a PR
+          gitrevision=$(params.gitrevision)
+          imageTag="SNAPSHOT-PR-$(params.prnumber)-${gitrevision:0:8}"
+      elif [ $(params.prnumber) == "NA" ] && [ $(params.gitrevision) == "master" ]; then
+          IMAGE_TAG_FILE=$(workspaces.source.path)/$(params.fileName)
+          if [ -f  "$IMAGE_TAG_FILE" ]; then
+            imageTag=$(cat $IMAGE_TAG_FILE)
+          else
+            # Commit pushed on master branch
+            # Retrieve current tag
+            git pull --tags >/dev/null 2>&1
+            # ERROR: fatal: No tags can describe '<revision-sha>'. when using `git describe --abbrev=0 --tags`
+            #Working alternative = (git describe --tags $(git rev-list --tags --max-count=1))
+            VERSION=$(git tag --sort=taggerdate | tail -1)
+            echo "Current tag for master: $VERSION"
+            # Split version and increment path by 1
+            VERSION=${VERSION:-'0.0.0'}
+            MAJOR="${VERSION%%.*}"; VERSION="${VERSION#*.}"
+            MINOR="${VERSION%%.*}"; VERSION="${VERSION#*.}"
+            PATCH="${VERSION%%.*}"; VERSION="${VERSION#*.}"
+            PATCH=$((PATCH+1))
+            imageTag="$MAJOR.$MINOR.$PATCH"
+          fi
+      else
+          #Not a PR and not a commit on master branch
+          gitrevision=$(inputs.params.gitrevision)
+          imageTag=${gitrevision:0:8)}
+      fi
+
+      echo -n $imageTag > $(results.IMAGE_TAG.path)
+---
+### Helm Lint ###
+apiVersion: tekton.dev/v1beta1
+kind: ClusterTask
+metadata:
+  name: helm-lint
+spec:
+  description: >-
+    helm-lint runs a helm lint on a pre checked out helm project in the *source* workspace
+  workspaces:
+  - name: source
+  steps:
+  - name: helm-lint
+    image: dtzar/helm-kubectl
+    command: ["/bin/bash"]
+    workingDir: $(workspaces.source.path)
+    args:
+      - -c
+      - helm lint
+---
+### Helm Package ###
+apiVersion: tekton.dev/v1beta1
+kind: ClusterTask
+metadata:
+  name: helm-package
+spec:
+  description: >-
+    helm-package installs helm push, increase version based on tag (if master) or from Char.yaml (if PR or branch).
+    Finally it saves the tag to GIT_TAG file in a pre checked out helm repository in the *source* workspace and
+    push the packed chart to the chartmuseum defined in *registry*
+  params:
+  - name: prnumber
+    type: string
+    default: NA
+  - name: gitrevision
+    type: string
+    default: master
+  - name: releaseName
+    type: string
+    default: chart-release
+  - name: registry
+    type: string
+    default: https:://stakater.github.io/stakater-charts/
+  results:
+  - name: GIT_TAG
+    description: The version tag specified in the given file
+  workspaces:
+  - name: source
+  steps:
+  - name: helm-package
+    image: dtzar/helm-kubectl
+    workingDir: $(workspaces.source.path)
+    env:
+    - name: REG_PASSWORD
+      valueFrom:
+        secretKeyRef:
+          name: helm-auth
+          key: password
+          optional: true
+    - name: REG_USER
+      valueFrom:
+        secretKeyRef:
+          name: helm-auth
+          key: username
+          optional: true
+    script: |
+      #!/usr/bin/env bash
+      echo "PR number: $(params.prnumber)"
+      VERSION=0.0.0
+      if [ $(params.prnumber) == "NA" ] && [ $(params.gitrevision) == "master" ]; then
+        # Commit pushed on master branch
+        # Retrieve current tag
+        git pull --tags >/dev/null 2>&1
+        # ERROR: fatal: No tags can describe '<revision-sha>'. when using `git describe --abbrev=0 --tags`
+        #Working alternative = (git describe --tags $(git rev-list --tags --max-count=1))
+        VERSION=$(git tag --sort=taggerdate | tail -1)
+      else
+        # This is a PR or other branch
+        VERSION=$(grep "^version:" $(workspaces.source.path)/Chart.yaml | awk '{print $NF}')
+      fi
+      # Split version and increment patch by 1
+      VERSION=${VERSION:-'0.0.0'}
+      MAJOR="${VERSION%%.*}"; VERSION="${VERSION#*.}"
+      MINOR="${VERSION%%.*}"; VERSION="${VERSION#*.}"
+      PATCH="${VERSION%%.*}"; VERSION="${VERSION#*.}"
+      PATCH=$((PATCH+1))
+      VERSION="$MAJOR.$MINOR.$PATCH"
+
+      if [ $(inputs.params.prnumber) != "NA" ]; then
+        gitrevision=$(inputs.params.gitrevision)
+        TAG="SNAPSHOT-PR-$(inputs.params.prnumber)-${gitrevision:0:8}-${VERSION}"
+      elif [ $(params.prnumber) == "NA" ] && [ $(params.gitrevision) == "master" ]; then
+        TAG="${VERSION}"
+      else
+        TAG="SNAPSHOT-${gitrevision:0:8}-${VERSION}"
+      fi
+
+      echo new version of chart $VERSION
+      echo $TAG > $(workspaces.source.path)/GIT_TAG
+      helm plugin install https://github.com/chartmuseum/helm-push
+      if [[ -z "${REG_PASSWORD}" ]] && [[ -z "${REG_USER}" ]]; then 
+        helm push . --version ${TAG} -d $(params.registry)
+      else
+        helm push . --version ${TAG} -d --username=${REG_USER} --password=${REG_PASSWORD} $(params.registry)
+      fi
+---
+### Git Tag Pre Cloned###
+apiVersion: tekton.dev/v1beta1
+kind: ClusterTask
+metadata:
+  name: git-tag-pre-cloned
+spec:
+  description: >-
+    git-tag-pre-cloned pushes a tag defined in GIT_TAG file in pre checked out helm repository in the *source* workspace.
+  params:
+  - name: prnumber
+    type: string
+    default: NA
+  - name: gitrevision
+    description: The git revision
+    default: master
+  workspaces:
+  - name: source
+  steps:
+  - name: git-tag-chart
+    image: stakater/alpine-git
+    workingDir: $(workspaces.source.path)
+    env:
+    - name: GIT_PASSWORD
+      valueFrom:
+        secretKeyRef:
+          name: git-auth
+          key: password
+    - name: GIT_USERNAME
+      valueFrom:
+        secretKeyRef:
+          name: git-auth
+          key: username
+    - name: GIT_EMAIL
+      valueFrom:
+        secretKeyRef:
+          name: git-auth
+          key: email
+    args:
+      - -c
+      - |
+        echo git branch $(params.gitrevision)
+        if [ $(params.prnumber) == "NA" ] && [ $(params.gitrevision) == "master" ]; then
+            export IMAGE_TAG=$(cat /workspace/source/GIT_TAG)
+            git config --global user.name $GIT_USERNAME
+            git config --global user.email $GIT_EMAIL
+            git config --global user.password $GIT_PASSWORD
+            git tag -am "Bump version to $IMAGE_TAG" $IMAGE_TAG
+            git push --tags
+        else
+          echo Don't push tag since it's a pullrequest or on branch
+        fi
