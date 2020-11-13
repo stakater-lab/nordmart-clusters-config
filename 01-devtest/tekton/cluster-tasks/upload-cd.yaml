@@ -1,0 +1,145 @@
+apiVersion: tekton.dev/v1beta1
+kind: ClusterTask
+metadata:
+  annotations:
+    description: |
+      Update CD Repo so ArgoCD can deploy
+    fluxcd.io/sync-checksum: 49a62763687f0a20f67b2330019c14219952fb83
+  generation: 11
+  labels:
+    fluxcd.io/sync-gc-mark: sha256.oq-RS-oEAlqvTqpW30zMKPssHtwISKas3_YyLuu17A0
+  managedFields:
+  - apiVersion: tekton.dev/v1beta1
+    fieldsType: FieldsV1
+    fieldsV1:
+      f:metadata:
+        f:annotations:
+          .: {}
+          f:description: {}
+          f:fluxcd.io/sync-checksum: {}
+          f:kubectl.kubernetes.io/last-applied-configuration: {}
+        f:labels:
+          .: {}
+          f:fluxcd.io/sync-gc-mark: {}
+      f:spec:
+        .: {}
+        f:params: {}
+        f:steps: {}
+        f:workspaces: {}
+    manager: kubectl
+    operation: Update
+    time: 2020-11-12T08:08:50Z
+  name: update-cd-repo
+  resourceVersion: "140601293"
+  selfLink: /apis/tekton.dev/v1beta1/clustertasks/update-cd-repo
+  uid: fdf1d6af-91f1-4512-8311-eeb40943835a
+spec:
+  params:
+  - description: Reference of the image tag.
+    name: IMAGE_TAG
+    type: string
+  - description: Reference of the image name.
+    name: IMAGE_NAME
+    type: string
+  - default: NA
+    description: In case of PR, PR number that is to be used in image tag. If this
+      field is empty it means that it's a commit on master branch
+    name: prnumber
+    type: string
+  - default: NA
+    description: ID of project on Gitlab
+    name: projectID
+    type: string
+  - default: ""
+    description: Git organization URL
+    name: gitorganization
+    type: string
+  - default: ""
+    description: The Directory to update CD manifests
+    name: gitcdrepo
+    type: string
+  - default: NA
+    description: Path of repository with group name
+    name: repoPath
+    type: string
+  - description: The git revision
+    name: gitrevision
+    type: string
+  - default: NA
+    description: The git revision
+    name: team
+    type: string
+  - default: NA
+    description: The git revision
+    name: clusterName
+    type: string
+  steps:
+  - args:
+    - -c
+    - |
+      echo $(params.gitcdrepo)
+      echo ${GIT_USERNAME}
+      echo $(params.gitorganization)
+      echo "$(params.team)"
+      echo "$(params.repoPath)"
+      git clone https://${GIT_USERNAME}:${GIT_PASSWORD}@$(params.gitorganization)/$(params.gitcdrepo)
+      cd $(params.gitcdrepo)
+      if [ "$(params.team)" != "NA" ]; then
+        TEAM=$(params.team)
+      else
+        TEAM=$(echo $(params.repoPath) | cut -d'/' -f 2)
+      fi
+      echo "Team is ${TEAM}"
+      REPO=$(echo $(params.repoPath) | rev | cut -d'/' -f 1 | rev )
+      echo "Repo is ${REPO}"
+      ls
+      helm repo add stakater https://stakater.github.io/stakater-charts/
+      git config --global user.name ${GIT_USERNAME}
+      git config --global user.email ${GIT_EMAIL}
+      if [ "$(params.clusterName)" != "NA" ]; then
+        cd $(params.clusterName)
+      fi
+      cd ${TEAM}
+      if [ "$(params.prnumber)" != "NA" ]; then
+        mkdir -p pr || true
+        helm template ${REPO} deploy/ --set applicationName=${REPO}-$(params.prnumber) --set deployment.image.repository=$(params.IMAGE_NAME) --set deployment.image.tag=$(params.IMAGE_TAG) --namespace ${TEAM}-pr > pr/${REPO}-$(params.prnumber).yaml
+        git add .
+        git commit -m "generate manifest for ${REPO} pr - $(params.prnumber)"
+      elif [ "$(params.prnumber)" == "NA" ] && [ "$(params.gitrevision)" == "master" ]; then
+        mkdir -p dev || true
+        helm template ${REPO} deploy/ --set deployment.image.repository=$(params.IMAGE_NAME) --set deployment.image.tag=$(params.IMAGE_TAG) --namespace ${TEAM}-dev > dev/${REPO}.yaml
+        git add .
+        git commit -m "generate manifest for ${REPO} dev"
+      fi
+      git push
+      while [ $? -ne 0 ]; do
+        echo "Error on Push"
+        echo "Pulling via Rebase"
+        git pull --rebase
+        echo "Pushing"
+        git push
+      done
+    command:
+    - /bin/bash
+    env:
+    - name: GIT_PASSWORD
+      valueFrom:
+        secretKeyRef:
+          key: password
+          name: git-auth
+    - name: GIT_USERNAME
+      valueFrom:
+        secretKeyRef:
+          key: username
+          name: git-auth
+    - name: GIT_EMAIL
+      valueFrom:
+        secretKeyRef:
+          key: email
+          name: git-auth
+    image: dtzar/helm-kubectl
+    name: update-cd-repo
+    resources: {}
+    workingDir: /workspace/cd_dir/
+  workspaces:
+  - name: source
