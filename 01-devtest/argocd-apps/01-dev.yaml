@@ -2,7 +2,7 @@ apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
   name: nordmart-dev
-  namespace: argocd
+  namespace: openshift-stakater-argocd
 spec:
   destination:
     namespace: nordmart-dev
