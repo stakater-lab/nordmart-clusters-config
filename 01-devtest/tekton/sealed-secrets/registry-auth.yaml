@@ -10,7 +10,7 @@ spec:
   template:
     metadata:
       annotations:
-        tekton.dev/docker-0: nexus.openshift-stakater-nexus.svc.cluster.local:8081/repository/docker
+        tekton.dev/docker-0: nexus.openshift-stakater-nexus.svc.cluster.local:5003/repository/docker/
       name: registry-auth
       namespace: nordmart-build
     type: kubernetes.io/basic-auth
