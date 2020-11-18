@@ -28,4 +28,4 @@ spec:
     - name: gitrepositoryurl
       value: "https://github.com/$(body.repository.full_name)"
     - name: image_registry_url
-      value: "docker.io/stakater/$(body.repository.name)"
+      value: "nexus.openshift-stakater-nexus.svc.cluster.local:5003/repository/docker/$(body.repository.name)"
