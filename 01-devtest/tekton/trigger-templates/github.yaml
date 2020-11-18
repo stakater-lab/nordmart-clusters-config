@@ -41,8 +41,8 @@ spec:
     - apiVersion: tekton.dev/v1alpha1
       kind: PipelineRun
       metadata:
-        name: $(params.repoName)-$(params.prnumberBranch)-$(uid)
-        namespace: $(params.namespace)
+        name: $(tt.params.repoName)-$(tt.params.prnumberBranch)-$(uid)
+        namespace: $(tt.params.namespace)
         annotations:
           "tekton.dev/git-status": "true"
           "tekton.dev/status-context": "pipeline-operator"
@@ -58,9 +58,9 @@ spec:
             type: git
             params:
               - name: revision
-                value: $(params.gitrevision)
+                value: $(tt.params.gitrevision)
               - name: url
-                value: $(params.gitrepositoryurl)
+                value: $(tt.params.gitrepositoryurl)
         workspaces:
         - name: source
           volumeClaimTemplate:
@@ -72,25 +72,25 @@ spec:
                   storage: 1Gi
         params:
         - name: prnumber
-          value: $(params.prnumber)
+          value: $(tt.params.prnumber)
         - name: projectID
-          value: $(params.projectID)
+          value: $(tt.params.projectID)
         - name: repoPath
-          value: $(params.repoPath)
+          value: $(tt.params.repoPath)
         - name: gitrepositoryurl
-          value: $(params.gitrepositoryurl)
+          value: $(tt.params.gitrepositoryurl)
         - name: gitrevision
-          value: $(params.gitrevision)
+          value: $(tt.params.gitrevision)
         - name: image_registry_url
-          value: $(params.image_registry_url)
+          value: $(tt.params.image_registry_url)
         - name: gitorganization
-          value: $(params.gitorganization)
+          value: $(tt.params.gitorganization)
         - name: gitcdrepo
-          value: $(params.gitcdrepo)
+          value: $(tt.params.gitcdrepo)
         - name: team
-          value: $(params.team)
+          value: $(tt.params.team)
         - name: clusterName
-          value: $(params.clusterName)
+          value: $(tt.params.clusterName)
 ---
 
 apiVersion: triggers.tekton.dev/v1alpha1
@@ -128,8 +128,8 @@ spec:
     - apiVersion: tekton.dev/v1alpha1
       kind: PipelineRun
       metadata:
-        name: $(params.repoName)-pr-$(params.prnumber)-cleaner
-        namespace: $(params.namespace)
+        name: $(tt.params.repoName)-pr-$(tt.params.prnumber)-cleaner
+        namespace: $(tt.params.namespace)
       spec:
         serviceAccountName: stakater-tekton-builder
         pipelineRef:
@@ -140,19 +140,19 @@ spec:
               type: git
               params:
               - name: revision
-                value: $(params.gitrevision)
+                value: $(tt.params.gitrevision)
               - name: url
-                value: $(params.gitrepositoryurl)
+                value: $(tt.params.gitrepositoryurl)
         params:
         - name: prnumber
-          value: $(params.prnumber)
+          value: $(tt.params.prnumber)
         - name: repoPath
-          value: $(params.repoPath)
+          value: $(tt.params.repoPath)
         - name: gitorganization
-          value: $(params.gitorganization)
+          value: $(tt.params.gitorganization)
         - name: gitcdrepo
-          value: $(params.gitcdrepo)
+          value: $(tt.params.gitcdrepo)
         - name: team
-          value: $(params.team)
+          value: $(tt.params.team)
         - name: clusterName
-          value: $(params.clusterName)
+          value: $(tt.params.clusterName)
