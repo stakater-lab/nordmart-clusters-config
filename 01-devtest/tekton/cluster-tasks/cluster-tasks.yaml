@@ -337,7 +337,7 @@ spec:
       if [ "$(params.prnumber)" != "NA" ]; then
         mkdir -p pr || true
         helm dep update /workspace/source/deploy
-        helm template ${REPO} /workspace/source/deploy  --set applicationName=${REPO}-$(params.prnumber) --set application.deployment.image.repository=$(params.IMAGE_NAME) --set application.deployment.image.tag=$(params.IMAGE_TAG) --namespace ${TEAM}-pr > pr/${REPO}-$(params.prnumber).yaml
+        helm template ${REPO} /workspace/source/deploy  --set application.applicationName=${REPO}-$(params.prnumber) --set application.deployment.image.repository=$(params.IMAGE_NAME) --set application.deployment.image.tag=$(params.IMAGE_TAG) --namespace ${TEAM}-pr > pr/${REPO}-$(params.prnumber).yaml
         git add .
         git commit -m "generate manifest for ${REPO} pr - $(params.prnumber)"
       elif [ "$(params.prnumber)" == "NA" ] && [ "$(params.gitrevision)" == "master" ]; then
