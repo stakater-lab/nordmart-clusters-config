@@ -47,7 +47,7 @@ spec:
           "tekton.dev/git-status": "true"
           "tekton.dev/status-context": "pipeline-operator"
           "tekton.dev/status-description": "Pipeline running on Openshift"
-          "tekton.dev/status-target-url": "https://console-openshift-console.apps.lab.enento.openshift.amazonweb.stakater.com/k8s/ns/$(params.namespace)/tekton.dev~v1beta1~PipelineRun/$(params.repoName)-$(params.prnumberBranch)-$(uid)"
+          "tekton.dev/status-target-url": "https://console-openshift-console.apps.binero.06p407u4.kubeapp.cloud/k8s/ns/$(tt.params.namespace)/tekton.dev~v1beta1~PipelineRun/$(tt.params.repoName)-$(tt.params.prnumberBranch)-$(uid)"
       spec:
         serviceAccountName: stakater-tekton-builder
         pipelineRef:
