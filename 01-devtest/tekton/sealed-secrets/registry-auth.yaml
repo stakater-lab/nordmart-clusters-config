@@ -10,7 +10,7 @@ spec:
   template:
     metadata:
       annotations:
-        tekton.dev/docker-0: nexus-docker-openshift-stakater-nexus.apps.binero.06p407u4.kubeapp.cloud
+        tekton.dev/docker-0: nexus-docker-openshift-stakater-nexus.apps.binero.06p407u4.kubeapp.cloud/repository/docker
       name: registry-auth
       namespace: nordmart-build
     type: kubernetes.io/basic-auth
