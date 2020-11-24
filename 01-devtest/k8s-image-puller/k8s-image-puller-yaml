@@ -1,0 +1,11 @@
+apiVersion: che.eclipse.org/v1alpha1
+kind: KubernetesImagePuller
+metadata:
+  name: image-puller
+  namespace: k8s-image-puller
+spec:
+  configMapName: k8s-image-puller
+  daemonsetName: k8s-image-puller
+  deploymentName: kubernetes-image-puller
+  images: >-
+    theia-endpoint-rhel8=registry.redhat.io/codeready-workspaces/theia-endpoint-rhel8:2.5;pluginbroker-metadata-rhel8=registry.redhat.io/codeready-workspaces/pluginbroker-metadata-rhel8:2.5;pluginbroker-artifacts-rhel8=registry.redhat.io/codeready-workspaces/pluginbroker-artifacts-rhel8:2.5;jwtproxy-rhel8=registry.redhat.io/codeready-workspaces/jwtproxy-rhel8:2.5;plugin-java11-rhel8=registry.redhat.io/codeready-workspaces/plugin-java11-rhel8:2.5;plugin-java11-rhel8-2=registry.redhat.io/codeready-workspaces/plugin-java11-rhel8@sha256:8b6a89e4c7bb16d764767fc494a28735b0b9c05b50277e7f46fc55e0bcda8258;theia-rhel8=registry.redhat.io/codeready-workspaces/theia-rhel8:2.5;postgres=postgres;plugin-java8-rhel8=registry.redhat.io/codeready-workspaces/plugin-java8-rhel8@sha256:b6e36406e7f8ff86f462f370f55143446ceb0c555b86b13593436f5e71b7cab1;plugin-java8-rhel8-2=registry.redhat.io/codeready-workspaces/plugin-java8-rhel8@sha256:663781fb227e06ec8f75ab7e26fcd80141ffcd093c56a35ed6c393845b36701a
