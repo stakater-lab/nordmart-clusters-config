@@ -239,7 +239,7 @@ spec:
               git config --global user.name $GIT_USERNAME
               git config --global user.email $GIT_EMAIL
               git config --global user.password $GIT_PASSWORD
-              git tag -am "Bump version to $IMAGE_TAG" $IMAGE_TAG
+              git tag -am "Bump version to $(params.IMAGE_TAG)" $(params.IMAGE_TAG)
               git push --tags
           fi
   volumes:
