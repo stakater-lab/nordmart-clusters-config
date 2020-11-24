@@ -32,11 +32,15 @@ spec:
     args:
     - -c
     - |
-      REPO_URL=$(params.gitrepositoryurl)
-      #Remove protocol
-      REPO_NAME=${REPO_URL#*//}
-      #Remove baseurl
-      REPO_NAME=${REPO_NAME#*/}
-      curl -s -H "Authorization: token ${GITHUBTOKEN}" \
-      -X POST -d '{"body": "Tekton - Pipeline ran successfully and image `$(params.IMAGE)` is available"}' \
-      "https://api.github.com/repos/${REPO_NAME}/issues/$(params.prnumber)/comments"
+      if [ $(params.prnumber) != "NA" ]; then
+        REPO_URL=$(params.gitrepositoryurl)
+        #Remove protocol
+        REPO_NAME=${REPO_URL#*//}
+        #Remove baseurl
+        REPO_NAME=${REPO_NAME#*/}
+        curl -s -H "Authorization: token ${GITHUBTOKEN}" \
+        -X POST -d '{"body": "Tekton - Pipeline ran successfully and image `$(params.IMAGE)` is available"}' \
+        "https://api.github.com/repos/${REPO_NAME}/issues/$(params.prnumber)/comments"
+      else
+        echo "Not a PR so cant comment"
+      fi
