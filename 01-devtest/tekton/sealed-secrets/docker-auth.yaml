@@ -1,0 +1,16 @@
+apiVersion: bitnami.com/v1alpha1
+kind: SealedSecret
+metadata:
+  creationTimestamp: null
+  name: docker-auth
+  namespace: nordmart-build
+spec:
+  encryptedData:
+    .dockerconfigjson: AgBvs1vYYWs3lAu+hHsQfhhQEcfzUCedJvwcoJU/twKdUXOnYnrpsALiN0xIM/ERDAa1q6eOQgXeOCUgqQsRLiRgEI7+7ZsxG796BYqbVQFR69ddx9p+nc8jcJ42X1vu3KJ0J0qXWWZrTjl5p5IYkxi5fhYm0xfM3kGrSu1yUJbxFq+jHOb158LqkM9DjRh5bpHXuXdVJjn1SDo0BlAztz46Vx82tzekLueUC09siuOauvm9F7SH2wPtYbg9VBLo5SXUn/D2x8/Hw5XtOraDj9KhFLsZYZ7PtOs9Iso9Sq5fZStc+MTBsBRFgBSjTd2FJuHedyu1IsT4W2AjHivWNEgTLKt8triZgyW/qCAENXA+7IiyhhUd/xWZEHYoJuefbsguVE4NTrxg3X47NEzbSMHF0aGEbB0x4c1CfwijL9/3kch0GvN++xyn7rmrNRowbgvDX8/bvCZoQEVEluDovNlDubn7NLJi57smHQBRpb06nGeyEj5BRS3X4hRn5fKK8p/7XSlWZZnXbAlcgpo1tKrOXTBKtmDyWH6tGOtyzyCJmMj3S0XFGj9wjEKPHVPX4z/2NJlkz8MeU2qoT+wTa6xdBPXze4XnF0UFXuiKDf+ZDB+dVazvUmZbKqMLNQCOahaS1NAkvFwR47UktMFdi/YFbEt48J2EAgd8ynGckv4+fQG8Ed7C2CQzhKItgvGDycIVeFCVGdxMrh0kP+LPb2fDWSw9yYEOxvWivFftJLS3HnjJtLzpocg76WcxkosNbHO9/jA/4qIkbEfbc6CVyNYf+pXXzKFhBMefv3ZBN6/F4VLD16s5LLiJNZG5BXhHu/XOVSPpKQil/elzkaHJr/JRjtMEGMo8kvqfLURd2rKerJR1Gi7LI3PWkEgtYgLZbmA5gg==
+  template:
+    metadata:
+      creationTimestamp: null
+      name: docker-auth
+      namespace: nordmart-build
+    type: kubernetes.io/dockerconfigjson
+
