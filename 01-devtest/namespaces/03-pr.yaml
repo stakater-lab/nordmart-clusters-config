@@ -6,3 +6,4 @@ metadata:
     openshift.io/node-selector: node-role.kubernetes.io/infra=
   labels:
     team: nordmart
+    kind: pr
